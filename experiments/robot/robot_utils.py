@@ -9,6 +9,7 @@ import torch
 
 from experiments.robot.openvla_utils import (
     get_vla,
+    get_vla_for_vla_arena,
     get_vla_action,
     get_vla_latent_action,
 )
@@ -42,6 +43,15 @@ def get_model(cfg, wrap_diffusion_policy_for_droid=False):
     """Load model for evaluation."""
     if cfg.model_family == "openvla":
         model = get_vla(cfg)
+    else:
+        raise ValueError("Unexpected `model_family` found in config.")
+    print(f"Loaded model: {type(model)}")
+    return model
+
+def get_model_for_vla_arena(cfg, wrap_diffusion_policy_for_droid=False):
+    """Load model for evaluation."""
+    if cfg.model_family == "openvla":
+        model = get_vla_for_vla_arena(cfg)
     else:
         raise ValueError("Unexpected `model_family` found in config.")
     print(f"Loaded model: {type(model)}")
