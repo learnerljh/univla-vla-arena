@@ -158,6 +158,83 @@ class RLDSBatchTransformLIBERO_withHis:
 
         return dict(pixel_values=pixel_values, input_ids=input_ids, labels=labels, actions=rlds_batch["action"][randomized_overlap: self.window_size + randomized_overlap], latent_action_idx=latent_action_idx, dataset_name=dataset_name)
 
+@dataclass
+class RLDSBatchTransformVLA_ARENA_withHis:
+    action_tokenizer: ActionTokenizer
+    base_tokenizer: PreTrainedTokenizerBase
+    image_transform: ImageTransform
+    image_transform_lam: ImageTransform
+    prompt_builder_fn: Type[PromptBuilder]
+    predict_stop_token: bool = True
+    window_size: int = 5
+
+    def __call__(self, rlds_batch: Dict[str, Any]) -> Dict[str, Any]:
+        """Converts a RLDS batch to the format expected by the OpenVLA collator/models."""
+        dataset_name, action = rlds_batch["dataset_name"], rlds_batch["action"][0]
+        # img = Image.fromarray(rlds_batch["observation"]["image_primary"][0])
+        lang = rlds_batch["task"]["language_instruction"].decode().lower()
+
+        randomized_overlap = random.randint(0,1)
+        img = Image.fromarray(rlds_batch["observation"]["image_primary"][0])
+        img_k = Image.fromarray(rlds_batch["observation"]["image_primary"][self.window_size-1])
+
+        input_img = Image.fromarray(rlds_batch["observation"]["image_primary"][randomized_overlap])
+        pixel_values = self.image_transform(input_img)
+
+        with torch.no_grad():
+            initial_pixel_values = self.image_transform_lam(input_img)
+            target_pixel_values= self.image_transform_lam(Image.fromarray(rlds_batch["observation"]["image_primary"][self.window_size - 1 + randomized_overlap]))
+
+            video = torch.stack([initial_pixel_values, target_pixel_values], dim=0).unsqueeze(0).to(self.action_tokenizer.device)
+            latent_action_idx = self.action_tokenizer.vq_encode(video)['indices'].squeeze()
+
+            if randomized_overlap > 0:
+                initial_pixel_values = self.image_transform_lam(img)
+                target_pixel_values= self.image_transform_lam(img_k)
+                video = torch.stack([initial_pixel_values, target_pixel_values], dim=0).unsqueeze(0).to(self.action_tokenizer.device)
+                hist_action_idx = self.action_tokenizer.vq_encode(video)['indices'].squeeze()        
+
+        action_vocab = [f'<ACT_{i.item()}>' for i in latent_action_idx]   # [ACT_1, ACT_2, ... ACT_K]
+        # print(action_vocab)
+        action_tokens = ''
+        for i, action in enumerate(action_vocab):
+            action_tokens += action
+
+        input_prompt = f"What action should the robot take to {lang}?"
+        if randomized_overlap > 0:
+            action_vocab = [f'<ACT_{i.item()}>' for i in hist_action_idx]   # [ACT_1, ACT_2, ... ACT_K]
+
+            hist_action_tokens = ''
+            for i, action in enumerate(action_vocab):
+                hist_action_tokens += action
+
+            input_prompt = f"What action should the robot take to {lang}? History action " + hist_action_tokens
+
+        # Construct Chat-based Prompt =>> Input is default query + language instruction, output are the action tokens
+        prompt_builder = self.prompt_builder_fn("openvla")
+        conversation = [
+            {"from": "human", "value": input_prompt},
+            {"from": "gpt", "value": action_tokens},
+        ]
+        for turn in conversation:
+            prompt_builder.add_turn(turn["from"], turn["value"])
+
+        # Tokenize (w/ `base_tokenizer`)
+        input_ids = self.base_tokenizer(prompt_builder.get_prompt(), add_special_tokens=True).input_ids
+        labels = list(input_ids)
+
+        # Tensorize =>> Run Image Transform to get `pixel_values` =>> Return
+        #   =>> IMPORTANT :: IF WE'RE USING HF LLM.forward(..., labels=labels), SHIFTING HAPPENS _INSIDE_ MODEL!
+        input_ids, labels = torch.tensor(input_ids), torch.tensor(labels)
+
+
+        # [CRITICAL] We do not want to take the loss for anything but the predicted action tokens!
+        labels[: -(len(action_vocab) + 1)] = IGNORE_INDEX
+        if not self.predict_stop_token:
+            labels[-1] = IGNORE_INDEX
+
+        return dict(pixel_values=pixel_values, input_ids=input_ids, labels=labels, actions=rlds_batch["action"][randomized_overlap: self.window_size + randomized_overlap], latent_action_idx=latent_action_idx, dataset_name=dataset_name)
+    
 
 @dataclass
 class RLDSBatchTransformLIBERO:

@@ -22,9 +22,9 @@ from transformers.modeling_outputs import CausalLMOutputWithPast
 
 import wandb
 from prismatic.models.backbones.llm.prompting import PurePromptBuilder, VicunaV15ChatPromptBuilder
-from prismatic.util.data_utils import PaddedCollatorForActionPrediction_LIBERO
+from prismatic.util.data_utils import PaddedCollatorForActionPrediction_VLA_ARENA
 from prismatic.vla.action_tokenizer import ActionTokenizer
-from prismatic.vla.datasets import RLDSBatchTransformLIBERO, RLDSBatchTransformLIBERO_withHis, RLDSDataset
+from prismatic.vla.datasets import RLDSBatchTransformVLA_ARENA_withHis, RLDSDataset
 from prismatic.vla.datasets.rlds.utils.data_utils import save_dataset_statistics
 
 from prismatic.extern.hf.configuration_prismatic import OpenVLAConfig
@@ -107,8 +107,8 @@ class FinetuneConfig:
     vla_path: str = "/path/to/your/pretrained-univla-7b"            # Path to your local UniVLA path
     lam_path: str = "latent_action_model/logs/task_centric_lam_stage2/epoch=0-step=200000.ckpt"
     # Directory Paths
-    data_root_dir: Path = Path("/LIBERO/modified_libero_rlds")      # Path to Open-X dataset directory
-    dataset_name: str = "libero_spatial_no_noops"                   # Name of fine-tuning dataset (e.g., `droid_wipe`)
+    data_root_dir: Path = Path("/your/path/to/rlds")      # Path to Open-X dataset directory
+    dataset_name: str = "vla_arena"                   # Name of fine-tuning dataset (e.g., `droid_wipe`)
     run_root_dir: Path = Path("runs")                               # Path to directory to store logs & checkpoints
     adapter_tmp_dir: Path = Path("adapter-tmp")                     # Temporary directory for LoRA weights before fusing
 
@@ -142,8 +142,8 @@ class FinetuneConfig:
                                                                     #   => CAUTION: Reduces memory but hurts performance
 
     # Tracking Parameters
-    wandb_project: str = "fientune-LIBERO"                          # Name of W&B project to log to (use default!)
-    wandb_entity: str = "opendrivelab"                              # Name of entity to log under
+    wandb_project: str = "fientune-VLA-ARENA"                          # Name of W&B project to log to (use default!)
+    wandb_entity: str = "jiahao-li"                              # Name of entity to log under
     run_id_note: Optional[str] = None                               # Extra note for logging, Weights & Biases
 
 
@@ -262,7 +262,7 @@ def finetune(cfg: FinetuneConfig) -> None:
     latent_action_model.load_state_dict(new_ckpt, strict=True)
     latent_action_model = latent_action_model.to(device_id).eval()
     
-    batch_transform = RLDSBatchTransformLIBERO_withHis(
+    batch_transform = RLDSBatchTransformVLA_ARENA_withHis(
         latent_action_model,
         processor.tokenizer,
         image_transform=processor.image_processor.apply_transform,
@@ -288,7 +288,7 @@ def finetune(cfg: FinetuneConfig) -> None:
         save_dataset_statistics(vla_dataset.dataset_statistics, run_dir)
 
     # Create Collator and DataLoader
-    collator = PaddedCollatorForActionPrediction_LIBERO(
+    collator = PaddedCollatorForActionPrediction_VLA_ARENA(
         processor.tokenizer.model_max_length, processor.tokenizer.pad_token_id, padding_side="right"
     )
     dataloader = DataLoader(

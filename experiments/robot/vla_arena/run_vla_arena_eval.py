@@ -62,11 +62,11 @@ class GenerateConfig:
     # Model-specific parameters
     #################################################################################################################
     model_family: str = "openvla"                    # Model family
-    pretrained_checkpoint: Union[str, Path] = "./vla-scripts/vla_arena_log/finetune-vla_arena"     # Pretrained checkpoint path
+    pretrained_checkpoint: Union[str, Path] = "/DATA/disk0/borong/UniVLA/runs/univla+libero_spatial_no_noops+b16+lr-0.00035+lora-r32+dropout-0.0--image_aug=w-LowLevelDecoder-ws-12--100000_chkpt"     # Pretrained checkpoint path
     load_in_8bit: bool = False                       # (For OpenVLA only) Load with 8-bit quantization
     load_in_4bit: bool = False                       # (For OpenVLA only) Load with 4-bit quantization
     
-    action_decoder_path:str = "./vla-scripts/vla_arena_log/finetune-vla_arena/action_decoder.pt"
+    action_decoder_path:str = "/DATA/disk0/borong/UniVLA/runs/univla+libero_spatial_no_noops+b16+lr-0.00035+lora-r32+dropout-0.0--image_aug=w-LowLevelDecoder-ws-12/action_decoder-100000.pt"
     center_crop: bool = True                         # Center crop? (if trained w/ random crop image aug)
     save_video: bool = True                         # Whether to save rollout videos
     #################################################################################################################

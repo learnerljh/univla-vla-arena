@@ -4,3 +4,4 @@ bddl
 easydict
 cloudpickle
 gym
+setuptools==78.1.1
